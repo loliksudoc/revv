@@ -344,11 +344,13 @@
                 <button class="btn btn-primary" id="add-feedback-btn">Оставить отзыв</button>
             </div>
             
-            <!-- Кнопка входа через Telegram OAuth -->
-            <button class="tg-login-btn" id="tg-login-btn">
-                <img src="logo.png" alt="Telegram">
-                Войти через Telegram
-            </button>
+            <!-- Telegram Login Widget -->
+            <script async src="https://telegram.org/js/telegram-widget.js?22"
+                    data-telegram-login="logg_robot"
+                    data-size="large"
+                    data-radius="10"
+                    data-auth-url="auth.html"
+                    data-request-access="write"></script>
             
             <!-- Кнопка выхода (изначально скрыта) -->
             <button class="btn logout-btn" id="logout-btn" style="display: none;">
@@ -360,14 +362,28 @@
             </div>
         </div>
         
-        <!-- Остальные блоки (feedback-container и feedback-form) остаются без изменений -->
+        <!-- Feedback list container -->
+        <div class="neon-card feedback-container" id="feedback-container">
+            <h2>Отзывы пользователей</h2>
+            <div class="feedback-list" id="feedback-list"></div>
+            <button class="btn btn-secondary" id="back-to-main-btn">Назад</button>
+        </div>
+        
+        <!-- Feedback form -->
+        <div class="neon-card feedback-form" id="feedback-form">
+            <div class="user-info">
+                <img src="default-avatar.png" alt="Avatar" class="user-avatar" id="form-user-avatar">
+                <span class="username" id="form-username">@username</span>
+            </div>
+            <textarea placeholder="Напишите ваш отзыв здесь..."></textarea>
+            <div class="btn-container">
+                <button class="btn btn-primary" id="submit-feedback-btn">Отправить</button>
+                <button class="btn btn-secondary" id="cancel-feedback-btn">Отмена</button>
+            </div>
+        </div>
     </div>
 
     <script>
-        // Telegram OAuth credentials (замените на свои)
-        const TELEGRAM_BOT_ID = 'logg_robot';
-        const TELEGRAM_OAUTH_URL = `https://oauth.telegram.org/auth?bot_id=${TELEGRAM_BOT_ID}&origin=${encodeURIComponent(window.location.origin)}&embed=1&request_access=write`;
-        
         // Имитация базы данных
         const feedbackDB = {
             storage: localStorage.getItem('feedbackDB') ? JSON.parse(localStorage.getItem('feedbackDB')) : [],
@@ -383,96 +399,72 @@
         };
 
         // Auth Controller
-       // Исправленный Auth Controller для Telegram OAuth
-const authController = {
-    currentUser: JSON.parse(localStorage.getItem('tg_user')) || null,
-    
-    init: function() {
-        this.handleOAuthCallback();
-        this.setupMessageListener();
-        this.updateUI();
-    },
-    
-    handleOAuthCallback: function() {
-        const hash = window.location.hash.substr(1);
-        if (hash.includes('tgAuthResult')) {
-            try {
-                const authResult = JSON.parse(decodeURIComponent(hash.split('tgAuthResult=')[1]));
-                this.saveUserData(authResult);
-                window.location.hash = '';
-            } catch (e) {
-                console.error('Error parsing auth result:', e);
-            }
-        }
-    },
-    
-    setupMessageListener: function() {
-        window.addEventListener('message', (e) => {
-            if (e.data?.event === 'tgAuthResult') {
-                this.saveUserData(e.data.data);
-            }
-        });
-    },
-    
-    saveUserData: function(authResult) {
-        if (authResult?.id) {
-            this.currentUser = {
-                id: authResult.id,
-                username: authResult.username || `user_${authResult.id}`,
-                firstName: authResult.first_name,
-                lastName: authResult.last_name,
-                avatar: authResult.photo_url || 'default-avatar.png'
-            };
-            localStorage.setItem('tg_user', JSON.stringify(this.currentUser));
-            this.updateUI();
-            alert('Вы успешно авторизовались!');
-        }
-    },
-    
-    login: function() {
-        const authWindow = window.open(
-            TELEGRAM_OAUTH_URL,
-            'tgAuth',
-            'width=600,height=400'
-        );
-        
-        const checkClosed = setInterval(() => {
-            if (authWindow.closed) {
-                clearInterval(checkClosed);
-                if (!this.currentUser) {
-                    alert('Авторизация не завершена');
+        const authController = {
+            currentUser: JSON.parse(localStorage.getItem('tg_user')) || null,
+            
+            init: function() {
+                this.handleAuthCallback();
+                this.updateUI();
+            },
+            
+            handleAuthCallback: function() {
+                // Проверяем параметры URL после аутентификации
+                const urlParams = new URLSearchParams(window.location.search);
+                const authData = urlParams.get('tgAuthResult');
+                
+                if (authData) {
+                    try {
+                        const userData = JSON.parse(decodeURIComponent(authData));
+                        this.saveUserData(userData);
+                        
+                        // Удаляем параметры из URL без перезагрузки
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    } catch (e) {
+                        console.error('Error parsing auth data:', e);
+                    }
                 }
+            },
+            
+            saveUserData: function(userData) {
+                if (userData?.id) {
+                    this.currentUser = {
+                        id: userData.id,
+                        username: userData.username || `user_${userData.id}`,
+                        firstName: userData.first_name,
+                        lastName: userData.last_name,
+                        avatar: userData.photo_url || 'default-avatar.png'
+                    };
+                    localStorage.setItem('tg_user', JSON.stringify(this.currentUser));
+                    this.updateUI();
+                }
+            },
+            
+            logout: function() {
+                this.currentUser = null;
+                localStorage.removeItem('tg_user');
+                this.updateUI();
+                appController.showMainMenu();
+            },
+            
+            updateUI: function() {
+                const isAuthenticated = !!this.currentUser;
+                document.getElementById('auth-warning').style.display = isAuthenticated ? 'none' : 'block';
+                document.getElementById('logout-btn').style.display = isAuthenticated ? 'block' : 'none';
+                
+                if (isAuthenticated) {
+                    document.getElementById('add-feedback-btn').onclick = () => appController.showFeedbackForm();
+                } else {
+                    document.getElementById('add-feedback-btn').onclick = (e) => {
+                        e.preventDefault();
+                        document.getElementById('auth-warning').style.display = 'block';
+                    };
+                }
+            },
+            
+            getUserData: function() {
+                return this.currentUser;
             }
-        }, 500);
-    },
-    
-    logout: function() {
-        this.currentUser = null;
-        localStorage.removeItem('tg_user');
-        this.updateUI();
-        appController.showMainMenu();
-    },
-    
-    updateUI: function() {
-        const isAuthenticated = !!this.currentUser;
-        document.getElementById('auth-warning').style.display = isAuthenticated ? 'none' : 'block';
-        document.getElementById('tg-login-btn').style.display = isAuthenticated ? 'none' : 'flex';
-        document.getElementById('logout-btn').style.display = isAuthenticated ? 'block' : 'none';
-        
-        if (isAuthenticated) {
-            document.getElementById('add-feedback-btn').onclick = () => appController.showFeedbackForm();
-        } else {
-            document.getElementById('add-feedback-btn').onclick = (e) => {
-                e.preventDefault();
-                alert('Для оставления отзыва войдите через Telegram!');
-            };
-        }
-    },
-    
-    getUserData: function() {
-        return this.currentUser;
-    }
-};
+        };
 
         // UI Controller
         const appController = {
@@ -501,7 +493,6 @@ const authController = {
                 document.getElementById('back-to-main-btn').addEventListener('click', () => this.showMainMenu());
                 document.getElementById('cancel-feedback-btn').addEventListener('click', () => this.showMainMenu());
                 document.getElementById('submit-feedback-btn').addEventListener('click', () => this.submitFeedback());
-                document.getElementById('tg-login-btn').addEventListener('click', () => authController.login());
                 document.getElementById('logout-btn').addEventListener('click', () => authController.logout());
             },
             
@@ -512,9 +503,16 @@ const authController = {
                 authController.updateUI();
             },
             
+            showFeedbackList: function() {
+                document.getElementById('main-menu').style.display = 'none';
+                document.getElementById('feedback-container').style.display = 'block';
+                document.getElementById('feedback-form').style.display = 'none';
+                this.loadFeedbacks();
+            },
+            
             showFeedbackForm: function() {
                 if (!authController.getUserData()) {
-                    alert('Для оставления отзыва войдите через Telegram!');
+                    document.getElementById('auth-warning').style.display = 'block';
                     return;
                 }
                 

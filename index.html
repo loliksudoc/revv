@@ -356,12 +356,13 @@
                 <button class="btn btn-primary" id="add-feedback-btn">Оставить отзыв</button>
             </div>
             
-            <!-- Telegram Login Button -->
-            <button class="tg-login-btn" id="tg-login-btn">
-                <img src="https://telegram.org/img/t_logo.png" alt="Telegram">
-                Войти через Telegram
-            </button>
-            <div class="loader" id="auth-loader"></div>
+            <!-- Telegram Login Widget -->
+            <script async src="https://telegram.org/js/telegram-widget.js?22"
+                    data-telegram-login="logg_robot"
+                    data-size="large"
+                    data-radius="10"
+                    data-auth-url="auth.html"
+                    data-request-access="write"></script>
             
             <!-- Кнопка выхода -->
             <button class="btn logout-btn" id="logout-btn" style="display: none;">
@@ -386,7 +387,7 @@
                 <img src="default-avatar.png" alt="Avatar" class="user-avatar" id="form-user-avatar">
                 <span class="username" id="form-username">@username</span>
             </div>
-            <textarea placeholder="Напишите ваш отзыв здесь..."></textarea>
+            <textarea placeholder="Напишите ваш отзыв здесь..." id="feedback-text"></textarea>
             <div class="btn-container">
                 <button class="btn btn-primary" id="submit-feedback-btn">Отправить</button>
                 <button class="btn btn-secondary" id="cancel-feedback-btn">Отмена</button>
@@ -395,67 +396,6 @@
     </div>
 
     <script>
-        // Конфигурация Telegram OAuth
-        const TELEGRAM_BOT_ID = '7871908181'; // Ваш bot_id
-        const TELEGRAM_BOT_USERNAME = 'logg_robot'; // Ваш username бота
-        
-        // Инициализация Telegram Auth
-        function initTelegramAuth() {
-            const loader = document.getElementById('auth-loader');
-            const loginBtn = document.getElementById('tg-login-btn');
-            
-            // Показываем loader
-            loginBtn.style.display = 'none';
-            loader.style.display = 'block';
-            
-            const redirectUrl = encodeURIComponent(window.location.href);
-            const authUrl = `https://oauth.telegram.org/auth?bot_id=${TELEGRAM_BOT_ID}&origin=${encodeURIComponent(window.location.origin)}&embed=1&request_access=write&return_to=${redirectUrl}`;
-            
-            try {
-                const authWindow = window.open(
-                    authUrl,
-                    'tgAuth',
-                    'width=600,height=400,left=100,top=100'
-                );
-                
-                if (!authWindow) {
-                    throw new Error('Не удалось открыть окно авторизации. Пожалуйста, разрешите всплывающие окна для этого сайта.');
-                }
-                
-                const checkClosed = setInterval(() => {
-                    if (authWindow.closed) {
-                        clearInterval(checkClosed);
-                        loader.style.display = 'none';
-                        checkAuthResult();
-                    }
-                }, 500);
-                
-            } catch (e) {
-                console.error('Ошибка авторизации:', e);
-                loader.style.display = 'none';
-                loginBtn.style.display = 'flex';
-                alert(e.message);
-            }
-        }
-        
-        // Проверяем результат авторизации в URL
-        function checkAuthResult() {
-            const hash = window.location.hash.substr(1);
-            if (hash.includes('tgAuthResult')) {
-                try {
-                    const authResult = JSON.parse(decodeURIComponent(hash.split('tgAuthResult=')[1]));
-                    
-                    if (authResult && authResult.id) {
-                        authController.saveUserData(authResult);
-                        // Очищаем hash без перезагрузки
-                        history.pushState("", document.title, window.location.pathname + window.location.search);
-                    }
-                } catch (e) {
-                    console.error('Ошибка обработки авторизации:', e);
-                }
-            }
-        }
-        
         // Имитация базы данных
         const feedbackDB = {
             storage: localStorage.getItem('feedbackDB') ? JSON.parse(localStorage.getItem('feedbackDB')) : [],
@@ -475,9 +415,23 @@
             currentUser: JSON.parse(localStorage.getItem('tg_user')) || null,
             
             init: function() {
-                checkAuthResult(); // Проверяем авторизацию при загрузке
-                this.setupEventListeners();
+                this.handleAuthCallback();
                 this.updateUI();
+            },
+            
+            handleAuthCallback: function() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const authData = urlParams.get('tgAuthResult');
+                
+                if (authData) {
+                    try {
+                        const userData = JSON.parse(decodeURIComponent(authData));
+                        this.saveUserData(userData);
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    } catch (e) {
+                        console.error('Error parsing auth data:', e);
+                    }
+                }
             },
             
             saveUserData: function(userData) {
@@ -501,14 +455,9 @@
                 appController.showMainMenu();
             },
             
-            setupEventListeners: function() {
-                document.getElementById('tg-login-btn').addEventListener('click', initTelegramAuth);
-            },
-            
             updateUI: function() {
                 const isAuthenticated = !!this.currentUser;
                 document.getElementById('auth-warning').style.display = isAuthenticated ? 'none' : 'block';
-                document.getElementById('tg-login-btn').style.display = isAuthenticated ? 'none' : 'flex';
                 document.getElementById('logout-btn').style.display = isAuthenticated ? 'block' : 'none';
                 
                 if (isAuthenticated) {
@@ -537,7 +486,6 @@
                 const videoElement = document.getElementById('bg-video');
                 const sourceElement = document.getElementById('video-source');
                 
-                // Примерные пути к видео - замените на свои
                 if (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
                     sourceElement.src = 'mobile-bg.mp4';
                 } else {
@@ -585,11 +533,11 @@
                     document.getElementById('form-username').textContent = `@${user.username}`;
                 }
                 
-                document.querySelector('textarea').focus();
+                document.getElementById('feedback-text').focus();
             },
             
             submitFeedback: function() {
-                const textarea = document.querySelector('textarea');
+                const textarea = document.getElementById('feedback-text');
                 const feedbackText = textarea.value.trim();
                 
                 if (!feedbackText) {

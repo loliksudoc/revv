@@ -344,15 +344,13 @@
                 <button class="btn btn-primary" id="add-feedback-btn">Оставить отзыв</button>
             </div>
             
-            <!-- Telegram Login Widget -->
-            <script async src="https://telegram.org/js/telegram-widget.js?22"
-                    data-telegram-login="logg_robot"
-                    data-size="large"
-                    data-radius="10"
-                    data-auth-url="auth.html"
-                    data-request-access="write"></script>
+            <!-- Telegram Login Button -->
+            <button class="tg-login-btn" id="tg-login-btn" onclick="initTelegramAuth()">
+                <img src="https://telegram.org/img/t_logo.png" alt="Telegram">
+                Войти через Telegram
+            </button>
             
-            <!-- Кнопка выхода (изначально скрыта) -->
+            <!-- Кнопка выхода -->
             <button class="btn logout-btn" id="logout-btn" style="display: none;">
                 Выйти
             </button>
@@ -384,6 +382,43 @@
     </div>
 
     <script>
+        // Инициализация Telegram Auth
+        function initTelegramAuth() {
+            const botUsername = 'logg_robot'; // Ваш бот
+            const redirectUrl = encodeURIComponent(window.location.href);
+            
+            // Открываем окно авторизации Telegram
+            const authWindow = window.open(
+                `https://oauth.telegram.org/auth?bot_id=${botUsername}&origin=${encodeURIComponent(window.location.origin)}&embed=1&request_access=write&return_to=${redirectUrl}`,
+                'tgAuth',
+                'width=600,height=400'
+            );
+            
+            // Проверяем закрытие окна
+            const checkClosed = setInterval(() => {
+                if (authWindow.closed) {
+                    clearInterval(checkClosed);
+                    checkAuthResult();
+                }
+            }, 500);
+        }
+        
+        // Проверяем результат авторизации в URL
+        function checkAuthResult() {
+            const hash = window.location.hash.substr(1);
+            if (hash.includes('tgAuthResult')) {
+                try {
+                    const authResult = JSON.parse(decodeURIComponent(hash.split('tgAuthResult=')[1]));
+                    authController.saveUserData(authResult);
+                    
+                    // Очищаем hash без перезагрузки
+                    history.pushState("", document.title, window.location.pathname + window.location.search);
+                } catch (e) {
+                    console.error('Error parsing auth result:', e);
+                }
+            }
+        }
+        
         // Имитация базы данных
         const feedbackDB = {
             storage: localStorage.getItem('feedbackDB') ? JSON.parse(localStorage.getItem('feedbackDB')) : [],
@@ -403,26 +438,8 @@
             currentUser: JSON.parse(localStorage.getItem('tg_user')) || null,
             
             init: function() {
-                this.handleAuthCallback();
+                checkAuthResult(); // Проверяем авторизацию при загрузке
                 this.updateUI();
-            },
-            
-            handleAuthCallback: function() {
-                // Проверяем параметры URL после аутентификации
-                const urlParams = new URLSearchParams(window.location.search);
-                const authData = urlParams.get('tgAuthResult');
-                
-                if (authData) {
-                    try {
-                        const userData = JSON.parse(decodeURIComponent(authData));
-                        this.saveUserData(userData);
-                        
-                        // Удаляем параметры из URL без перезагрузки
-                        window.history.replaceState({}, document.title, window.location.pathname);
-                    } catch (e) {
-                        console.error('Error parsing auth data:', e);
-                    }
-                }
             },
             
             saveUserData: function(userData) {
@@ -436,6 +453,7 @@
                     };
                     localStorage.setItem('tg_user', JSON.stringify(this.currentUser));
                     this.updateUI();
+                    alert('Вы успешно авторизовались!');
                 }
             },
             
@@ -449,13 +467,13 @@
             updateUI: function() {
                 const isAuthenticated = !!this.currentUser;
                 document.getElementById('auth-warning').style.display = isAuthenticated ? 'none' : 'block';
+                document.getElementById('tg-login-btn').style.display = isAuthenticated ? 'none' : 'flex';
                 document.getElementById('logout-btn').style.display = isAuthenticated ? 'block' : 'none';
                 
                 if (isAuthenticated) {
                     document.getElementById('add-feedback-btn').onclick = () => appController.showFeedbackForm();
                 } else {
-                    document.getElementById('add-feedback-btn').onclick = (e) => {
-                        e.preventDefault();
+                    document.getElementById('add-feedback-btn').onclick = () => {
                         document.getElementById('auth-warning').style.display = 'block';
                     };
                 }
@@ -466,7 +484,7 @@
             }
         };
 
-        // UI Controller
+        // UI Controller (остается без изменений)
         const appController = {
             init: function() {
                 this.setBackgroundVideo();
@@ -500,7 +518,6 @@
                 document.getElementById('main-menu').style.display = 'block';
                 document.getElementById('feedback-container').style.display = 'none';
                 document.getElementById('feedback-form').style.display = 'none';
-                authController.updateUI();
             },
             
             showFeedbackList: function() {
@@ -588,7 +605,7 @@
             }
         };
 
-        // Инициализация приложения
+        // Инициализация при загрузке
         document.addEventListener('DOMContentLoaded', () => {
             appController.init();
         });

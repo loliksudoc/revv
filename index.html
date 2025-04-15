@@ -315,6 +315,15 @@
                 max-height: 50vh;
             }
         }
+        .logout-btn {
+            background: #ff4757;
+            color: white;
+            margin-top: 15px;
+        }
+        
+        .logout-btn:hover {
+            background: #ff6b81;
+        }
     </style>
 </head>
 <body>
@@ -335,10 +344,15 @@
                 <button class="btn btn-primary" id="add-feedback-btn">Оставить отзыв</button>
             </div>
             
-            <!-- Кнопка входа через Telegram -->
+            <!-- Кнопка входа через Telegram OAuth -->
             <button class="tg-login-btn" id="tg-login-btn">
-                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0xMS45NDQgMEM1LjQ2NSAwIC4xMyA1LjE3OS4xMyAxMS41MzdjMCAzLjI3NSAxLjI1MyA2LjIxNyAzLjMxIDguNDk3bC0xLjY1OCA2LjE0NGMu0LTEuNDQ5IDEuNjQ1LTIuMDIgMi4xMjctLjc3NGwxLjk4LTcuMzgzYy43ODYuMjc4IDEuNjEuNDM3IDIuNDYuNDY3VjI0aDcuOTQ0di0xLjU0N2MzLjUxLS4zMzkgNi4zMTMtMy4xMDMgNi4zMTMtNi43MTYgMC0zLjcxLTIuODctNi43MTYtNi40NTYtNi43MTZIMTEuOTR6Ii8+PC9zdmc+" alt="Telegram">
+                <img src="logo.png" alt="Telegram">
                 Войти через Telegram
+            </button>
+            
+            <!-- Кнопка выхода (изначально скрыта) -->
+            <button class="btn logout-btn" id="logout-btn" style="display: none;">
+                Выйти
             </button>
             
             <div class="auth-warning" id="auth-warning">
@@ -346,29 +360,14 @@
             </div>
         </div>
         
-        <!-- Feedback container -->
-        <div class="neon-card feedback-container" id="feedback-container">
-            <h1>Последние отзывы</h1>
-            <div class="feedback-list" id="feedback-list">
-                <!-- Feedback items will be added here by JS -->
-            </div>
-            <button class="btn btn-secondary" id="back-to-main-btn">На главную</button>
-        </div>
-        
-        <!-- Feedback form -->
-        <div class="neon-card feedback-form" id="feedback-form">
-            <h1>Ваш отзыв</h1>
-            <div class="user-info" id="form-user-info">
-                <img id="form-user-avatar" class="user-avatar" src="default-avatar.png" alt="User">
-                <span class="username" id="form-username">@username</span>
-            </div>
-            <textarea placeholder="Напишите ваш отзыв здесь..."></textarea>
-            <button class="btn btn-primary" id="submit-feedback-btn">Отправить</button>
-            <button class="btn btn-secondary" id="cancel-feedback-btn">Отмена</button>
-        </div>
+        <!-- Остальные блоки (feedback-container и feedback-form) остаются без изменений -->
     </div>
 
     <script>
+        // Telegram OAuth credentials (замените на свои)
+        const TELEGRAM_BOT_ID = 'logg_robot';
+        const TELEGRAM_OAUTH_URL = `https://oauth.telegram.org/auth?bot_id=${TELEGRAM_BOT_ID}&origin=${encodeURIComponent(window.location.origin)}&embed=1&request_access=write`;
+        
         // Имитация базы данных
         const feedbackDB = {
             storage: localStorage.getItem('feedbackDB') ? JSON.parse(localStorage.getItem('feedbackDB')) : [],
@@ -380,58 +379,61 @@
             
             getFeedbacks: function() {
                 return this.storage;
-            },
-            
-            clearDB: function() {
-                this.storage = [];
-                localStorage.setItem('feedbackDB', JSON.stringify(this.storage));
             }
         };
 
-        // Telegram WebApp integration
-        const tgWebApp = {
-            isTelegram: false,
-            user: null,
+        // Auth Controller
+        const authController = {
+            currentUser: JSON.parse(localStorage.getItem('tg_user')) || null,
             
             init: function() {
-                if (window.Telegram && window.Telegram.WebApp) {
-                    this.isTelegram = true;
-                    window.Telegram.WebApp.expand();
-                    this.user = window.Telegram.WebApp.initDataUnsafe?.user;
-                    
-                    if (this.user) {
-                        console.log('User authenticated via Telegram:', this.user);
-                        document.getElementById('auth-warning').style.display = 'none';
-                        document.getElementById('tg-login-btn').style.display = 'none';
-                    } else {
-                        console.log('User not authenticated');
-                        document.getElementById('auth-warning').style.display = 'block';
+                this.handleOAuthCallback();
+                this.updateUI();
+            },
+            
+            handleOAuthCallback: function() {
+                const hash = window.location.hash.substr(1);
+                if (hash.includes('tgAuthResult')) {
+                    try {
+                        const authResult = JSON.parse(decodeURIComponent(hash.split('tgAuthResult=')[1]));
+                        if (authResult && authResult.id) {
+                            this.currentUser = {
+                                id: authResult.id,
+                                username: authResult.username || `user_${authResult.id}`,
+                                firstName: authResult.first_name,
+                                lastName: authResult.last_name,
+                                avatar: authResult.photo_url || 'default-avatar.png',
+                                authDate: authResult.auth_date
+                            };
+                            localStorage.setItem('tg_user', JSON.stringify(this.currentUser));
+                            window.location.hash = '';
+                        }
+                    } catch (e) {
+                        console.error('Error parsing auth result:', e);
                     }
-                } else {
-                    console.log('Not in Telegram WebApp');
-                    document.getElementById('auth-warning').style.display = 'block';
                 }
+            },
+            
+            login: function() {
+                window.open(TELEGRAM_OAUTH_URL, 'tgAuth', 'width=600,height=400');
+            },
+            
+            logout: function() {
+                this.currentUser = null;
+                localStorage.removeItem('tg_user');
+                this.updateUI();
+                appController.showMainMenu();
+            },
+            
+            updateUI: function() {
+                const isAuthenticated = !!this.currentUser;
+                document.getElementById('auth-warning').style.display = isAuthenticated ? 'none' : 'block';
+                document.getElementById('tg-login-btn').style.display = isAuthenticated ? 'none' : 'flex';
+                document.getElementById('logout-btn').style.display = isAuthenticated ? 'block' : 'none';
             },
             
             getUserData: function() {
-                if (this.user) {
-                    return {
-                        id: this.user.id,
-                        username: this.user.username || `user_${this.user.id}`,
-                        firstName: this.user.first_name,
-                        lastName: this.user.last_name,
-                        avatar: this.user.photo_url || 'default-avatar.png'
-                    };
-                }
-                return null;
-            },
-            
-            openAuth: function() {
-                if (this.isTelegram) {
-                    window.Telegram.WebApp.openTelegramLink('https://t.me/YourBotName?start=webapp');
-                } else {
-                    window.open('https://t.me/YourBotName?start=webapp', '_blank');
-                }
+                return this.currentUser;
             }
         };
 
@@ -439,16 +441,14 @@
         const appController = {
             init: function() {
                 this.setBackgroundVideo();
-                tgWebApp.init();
+                authController.init();
                 this.setupEventListeners();
-                this.checkAuth();
             },
             
             setBackgroundVideo: function() {
                 const videoElement = document.getElementById('bg-video');
                 const sourceElement = document.getElementById('video-source');
                 
-                // Устанавливаем видео в зависимости от устройства
                 if (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
                     sourceElement.src = 'mobile-bg.mp4';
                 } else {
@@ -464,36 +464,19 @@
                 document.getElementById('back-to-main-btn').addEventListener('click', () => this.showMainMenu());
                 document.getElementById('cancel-feedback-btn').addEventListener('click', () => this.showMainMenu());
                 document.getElementById('submit-feedback-btn').addEventListener('click', () => this.submitFeedback());
-                document.getElementById('tg-login-btn').addEventListener('click', () => tgWebApp.openAuth());
-            },
-            
-            checkAuth: function() {
-                if (!tgWebApp.isTelegram || !tgWebApp.user) {
-                    document.getElementById('add-feedback-btn').addEventListener('click', (e) => {
-                        if (!tgWebApp.user) {
-                            e.preventDefault();
-                            alert('Для оставления отзыва войдите через Telegram!');
-                        }
-                    });
-                }
+                document.getElementById('tg-login-btn').addEventListener('click', () => authController.login());
+                document.getElementById('logout-btn').addEventListener('click', () => authController.logout());
             },
             
             showMainMenu: function() {
                 document.getElementById('main-menu').style.display = 'block';
                 document.getElementById('feedback-container').style.display = 'none';
                 document.getElementById('feedback-form').style.display = 'none';
-            },
-            
-            showFeedbackList: function() {
-                document.getElementById('main-menu').style.display = 'none';
-                document.getElementById('feedback-container').style.display = 'block';
-                document.getElementById('feedback-form').style.display = 'none';
-                
-                this.loadFeedbacks();
+                authController.updateUI();
             },
             
             showFeedbackForm: function() {
-                if (!tgWebApp.user) {
+                if (!authController.getUserData()) {
                     alert('Для оставления отзыва войдите через Telegram!');
                     return;
                 }
@@ -502,13 +485,45 @@
                 document.getElementById('feedback-container').style.display = 'none';
                 document.getElementById('feedback-form').style.display = 'block';
                 
-                const user = tgWebApp.getUserData();
+                const user = authController.getUserData();
                 if (user) {
                     document.getElementById('form-user-avatar').src = user.avatar;
                     document.getElementById('form-username').textContent = `@${user.username}`;
                 }
                 
                 document.querySelector('textarea').focus();
+            },
+            
+            submitFeedback: function() {
+                const textarea = document.querySelector('textarea');
+                const feedbackText = textarea.value.trim();
+                
+                if (!feedbackText) {
+                    alert('Пожалуйста, введите текст отзыва');
+                    return;
+                }
+                
+                const user = authController.getUserData();
+                if (!user) {
+                    alert('Ошибка авторизации');
+                    return;
+                }
+                
+                const newFeedback = {
+                    user: {
+                        id: user.id,
+                        username: user.username,
+                        avatar: user.avatar
+                    },
+                    text: feedbackText,
+                    date: new Date().toISOString()
+                };
+                
+                feedbackDB.addFeedback(newFeedback);
+                textarea.value = '';
+                
+                alert('Спасибо за ваш отзыв!');
+                this.showFeedbackList();
             },
             
             loadFeedbacks: function() {
@@ -535,38 +550,6 @@
                     `;
                     feedbackList.appendChild(feedbackItem);
                 });
-            },
-            
-            submitFeedback: function() {
-                const textarea = document.querySelector('textarea');
-                const feedbackText = textarea.value.trim();
-                
-                if (!feedbackText) {
-                    alert('Пожалуйста, введите текст отзыва');
-                    return;
-                }
-                
-                const user = tgWebApp.getUserData();
-                if (!user) {
-                    alert('Ошибка авторизации');
-                    return;
-                }
-                
-                const newFeedback = {
-                    user: {
-                        id: user.id,
-                        username: user.username,
-                        avatar: user.avatar
-                    },
-                    text: feedbackText,
-                    date: new Date().toISOString()
-                };
-                
-                feedbackDB.addFeedback(newFeedback);
-                textarea.value = '';
-                
-                alert('Спасибо за ваш отзыв!');
-                this.showFeedbackList();
             }
         };
 

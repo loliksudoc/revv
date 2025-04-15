@@ -365,7 +365,7 @@
 
     <script>
         // Telegram OAuth credentials (замените на свои)
-        const TELEGRAM_BOT_ID = '7871908181';
+        const TELEGRAM_BOT_ID = 'logg_robot';
         const TELEGRAM_OAUTH_URL = `https://oauth.telegram.org/auth?bot_id=${TELEGRAM_BOT_ID}&origin=${encodeURIComponent(window.location.origin)}&embed=1&request_access=write`;
         
         // Имитация базы данных
@@ -383,59 +383,96 @@
         };
 
         // Auth Controller
-        const authController = {
-            currentUser: JSON.parse(localStorage.getItem('tg_user')) || null,
-            
-            init: function() {
-                this.handleOAuthCallback();
-                this.updateUI();
-            },
-            
-            handleOAuthCallback: function() {
-                const hash = window.location.hash.substr(1);
-                if (hash.includes('tgAuthResult')) {
-                    try {
-                        const authResult = JSON.parse(decodeURIComponent(hash.split('tgAuthResult=')[1]));
-                        if (authResult && authResult.id) {
-                            this.currentUser = {
-                                id: authResult.id,
-                                username: authResult.username || `user_${authResult.id}`,
-                                firstName: authResult.first_name,
-                                lastName: authResult.last_name,
-                                avatar: authResult.photo_url || 'default-avatar.png',
-                                authDate: authResult.auth_date
-                            };
-                            localStorage.setItem('tg_user', JSON.stringify(this.currentUser));
-                            window.location.hash = '';
-                        }
-                    } catch (e) {
-                        console.error('Error parsing auth result:', e);
-                    }
-                }
-            },
-            
-            login: function() {
-                window.open(TELEGRAM_OAUTH_URL, 'tgAuth', 'width=600,height=400');
-            },
-            
-            logout: function() {
-                this.currentUser = null;
-                localStorage.removeItem('tg_user');
-                this.updateUI();
-                appController.showMainMenu();
-            },
-            
-            updateUI: function() {
-                const isAuthenticated = !!this.currentUser;
-                document.getElementById('auth-warning').style.display = isAuthenticated ? 'none' : 'block';
-                document.getElementById('tg-login-btn').style.display = isAuthenticated ? 'none' : 'flex';
-                document.getElementById('logout-btn').style.display = isAuthenticated ? 'block' : 'none';
-            },
-            
-            getUserData: function() {
-                return this.currentUser;
+       // Исправленный Auth Controller для Telegram OAuth
+const authController = {
+    currentUser: JSON.parse(localStorage.getItem('tg_user')) || null,
+    
+    init: function() {
+        this.handleOAuthCallback();
+        this.setupMessageListener();
+        this.updateUI();
+    },
+    
+    handleOAuthCallback: function() {
+        const hash = window.location.hash.substr(1);
+        if (hash.includes('tgAuthResult')) {
+            try {
+                const authResult = JSON.parse(decodeURIComponent(hash.split('tgAuthResult=')[1]));
+                this.saveUserData(authResult);
+                window.location.hash = '';
+            } catch (e) {
+                console.error('Error parsing auth result:', e);
             }
-        };
+        }
+    },
+    
+    setupMessageListener: function() {
+        window.addEventListener('message', (e) => {
+            if (e.data?.event === 'tgAuthResult') {
+                this.saveUserData(e.data.data);
+            }
+        });
+    },
+    
+    saveUserData: function(authResult) {
+        if (authResult?.id) {
+            this.currentUser = {
+                id: authResult.id,
+                username: authResult.username || `user_${authResult.id}`,
+                firstName: authResult.first_name,
+                lastName: authResult.last_name,
+                avatar: authResult.photo_url || 'default-avatar.png'
+            };
+            localStorage.setItem('tg_user', JSON.stringify(this.currentUser));
+            this.updateUI();
+            alert('Вы успешно авторизовались!');
+        }
+    },
+    
+    login: function() {
+        const authWindow = window.open(
+            TELEGRAM_OAUTH_URL,
+            'tgAuth',
+            'width=600,height=400'
+        );
+        
+        const checkClosed = setInterval(() => {
+            if (authWindow.closed) {
+                clearInterval(checkClosed);
+                if (!this.currentUser) {
+                    alert('Авторизация не завершена');
+                }
+            }
+        }, 500);
+    },
+    
+    logout: function() {
+        this.currentUser = null;
+        localStorage.removeItem('tg_user');
+        this.updateUI();
+        appController.showMainMenu();
+    },
+    
+    updateUI: function() {
+        const isAuthenticated = !!this.currentUser;
+        document.getElementById('auth-warning').style.display = isAuthenticated ? 'none' : 'block';
+        document.getElementById('tg-login-btn').style.display = isAuthenticated ? 'none' : 'flex';
+        document.getElementById('logout-btn').style.display = isAuthenticated ? 'block' : 'none';
+        
+        if (isAuthenticated) {
+            document.getElementById('add-feedback-btn').onclick = () => appController.showFeedbackForm();
+        } else {
+            document.getElementById('add-feedback-btn').onclick = (e) => {
+                e.preventDefault();
+                alert('Для оставления отзыва войдите через Telegram!');
+            };
+        }
+    },
+    
+    getUserData: function() {
+        return this.currentUser;
+    }
+};
 
         // UI Controller
         const appController = {

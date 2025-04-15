@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auth Handler</title>
+    <script>
+        // Получаем данные авторизации из URL
+        const urlParams = new URLSearchParams(window.location.hash.substr(1));
+        const authData = urlParams.get('tgAuthResult');
+        
+        if (authData) {
+            // Перенаправляем обратно в основное приложение с данными авторизации
+            window.location.href = `index.html?tgAuthResult=${encodeURIComponent(authData)}`;
+        } else {
+            window.location.href = 'index.html';
+        }
+    </script>
+</head>
+<body>
+    <p>Обработка авторизации...</p>
+</body>
+</html>

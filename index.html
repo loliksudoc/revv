@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Neon Feedback | Отзывы через Telegram</title>
     <style>
+        /* Все стили остаются без изменений */
         :root {
             --neon-color: #0ef;
             --dark-bg: #1a1a2e;
@@ -145,7 +146,6 @@
             transform: translateY(-3px);
         }
         
-        /* Feedback styles */
         .feedback-container {
             display: none;
             width: 100%;
@@ -206,7 +206,6 @@
             text-align: right;
         }
         
-        /* Feedback form */
         .feedback-form {
             display: none;
             width: 100%;
@@ -234,7 +233,6 @@
             border-color: var(--neon-color);
         }
         
-        /* Auth warning */
         .auth-warning {
             display: none;
             color: #ff6b6b;
@@ -249,7 +247,6 @@
             100% { opacity: 0.7; }
         }
         
-        /* Telegram login button */
         .tg-login-btn {
             display: flex;
             align-items: center;
@@ -279,7 +276,6 @@
             height: 20px;
         }
         
-        /* Scrollbar */
         ::-webkit-scrollbar {
             width: 8px;
         }
@@ -294,7 +290,6 @@
             border-radius: 10px;
         }
         
-        /* Mobile adaptation */
         @media (max-width: 768px) {
             .neon-card {
                 padding: 20px;
@@ -315,6 +310,7 @@
                 max-height: 50vh;
             }
         }
+        
         .logout-btn {
             background: #ff4757;
             color: white;
@@ -323,6 +319,22 @@
         
         .logout-btn:hover {
             background: #ff6b81;
+        }
+        
+        .loader {
+            display: none;
+            border: 3px solid rgba(0, 238, 255, 0.3);
+            border-radius: 50%;
+            border-top: 3px solid var(--neon-color);
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            margin: 10px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -345,10 +357,11 @@
             </div>
             
             <!-- Telegram Login Button -->
-            <button class="tg-login-btn" id="tg-login-btn" onclick="initTelegramAuth()">
+            <button class="tg-login-btn" id="tg-login-btn">
                 <img src="https://telegram.org/img/t_logo.png" alt="Telegram">
                 Войти через Telegram
             </button>
+            <div class="loader" id="auth-loader"></div>
             
             <!-- Кнопка выхода -->
             <button class="btn logout-btn" id="logout-btn" style="display: none;">
@@ -382,26 +395,47 @@
     </div>
 
     <script>
+        // Конфигурация Telegram OAuth
+        const TELEGRAM_BOT_ID = '7871908181'; // Ваш bot_id
+        const TELEGRAM_BOT_USERNAME = 'logg_robot'; // Ваш username бота
+        
         // Инициализация Telegram Auth
         function initTelegramAuth() {
-            const botUsername = 'rogg_robot';
-            const botId = 7871908181;
+            const loader = document.getElementById('auth-loader');
+            const loginBtn = document.getElementById('tg-login-btn');
+            
+            // Показываем loader
+            loginBtn.style.display = 'none';
+            loader.style.display = 'block';
+            
             const redirectUrl = encodeURIComponent(window.location.href);
+            const authUrl = `https://oauth.telegram.org/auth?bot_id=${TELEGRAM_BOT_ID}&origin=${encodeURIComponent(window.location.origin)}&embed=1&request_access=write&return_to=${redirectUrl}`;
             
-            // Открываем окно авторизации Telegram
-            const authWindow = window.open(
-                `https://oauth.telegram.org/auth?bot_id=${botUsername}&origin=${encodeURIComponent(window.location.origin)}&embed=1&request_access=write&return_to=${redirectUrl}`,
-                'tgAuth',
-                'width=600,height=400'
-            );
-            
-            // Проверяем закрытие окна
-            const checkClosed = setInterval(() => {
-                if (authWindow.closed) {
-                    clearInterval(checkClosed);
-                    checkAuthResult();
+            try {
+                const authWindow = window.open(
+                    authUrl,
+                    'tgAuth',
+                    'width=600,height=400,left=100,top=100'
+                );
+                
+                if (!authWindow) {
+                    throw new Error('Не удалось открыть окно авторизации. Пожалуйста, разрешите всплывающие окна для этого сайта.');
                 }
-            }, 500);
+                
+                const checkClosed = setInterval(() => {
+                    if (authWindow.closed) {
+                        clearInterval(checkClosed);
+                        loader.style.display = 'none';
+                        checkAuthResult();
+                    }
+                }, 500);
+                
+            } catch (e) {
+                console.error('Ошибка авторизации:', e);
+                loader.style.display = 'none';
+                loginBtn.style.display = 'flex';
+                alert(e.message);
+            }
         }
         
         // Проверяем результат авторизации в URL
@@ -410,12 +444,14 @@
             if (hash.includes('tgAuthResult')) {
                 try {
                     const authResult = JSON.parse(decodeURIComponent(hash.split('tgAuthResult=')[1]));
-                    authController.saveUserData(authResult);
                     
-                    // Очищаем hash без перезагрузки
-                    history.pushState("", document.title, window.location.pathname + window.location.search);
+                    if (authResult && authResult.id) {
+                        authController.saveUserData(authResult);
+                        // Очищаем hash без перезагрузки
+                        history.pushState("", document.title, window.location.pathname + window.location.search);
+                    }
                 } catch (e) {
-                    console.error('Error parsing auth result:', e);
+                    console.error('Ошибка обработки авторизации:', e);
                 }
             }
         }
@@ -440,6 +476,7 @@
             
             init: function() {
                 checkAuthResult(); // Проверяем авторизацию при загрузке
+                this.setupEventListeners();
                 this.updateUI();
             },
             
@@ -454,7 +491,6 @@
                     };
                     localStorage.setItem('tg_user', JSON.stringify(this.currentUser));
                     this.updateUI();
-                    alert('Вы успешно авторизовались!');
                 }
             },
             
@@ -463,6 +499,10 @@
                 localStorage.removeItem('tg_user');
                 this.updateUI();
                 appController.showMainMenu();
+            },
+            
+            setupEventListeners: function() {
+                document.getElementById('tg-login-btn').addEventListener('click', initTelegramAuth);
             },
             
             updateUI: function() {
@@ -485,7 +525,7 @@
             }
         };
 
-        // UI Controller (остается без изменений)
+        // UI Controller
         const appController = {
             init: function() {
                 this.setBackgroundVideo();
@@ -497,6 +537,7 @@
                 const videoElement = document.getElementById('bg-video');
                 const sourceElement = document.getElementById('video-source');
                 
+                // Примерные пути к видео - замените на свои
                 if (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
                     sourceElement.src = 'mobile-bg.mp4';
                 } else {

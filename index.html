@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Feedback | Отзывы через Telegram</title>
+    <style>
+        :root {
+            --neon-color: #0ef;
+            --dark-bg: #1a1a2e;
+            --card-bg: rgba(26, 26, 46, 0.8);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+            color: white;
+            background: var(--dark-bg);
+        }
+        
+        #bg-video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: -2;
+            opacity: 0.7;
+        }
+        
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(10,10,30,0.9) 0%, rgba(20,20,50,0.7) 100%);
+            z-index: -1;
+        }
+        
+        .main-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            padding: 20px;
+        }
+        
+        .neon-card {
+            background: var(--card-bg);
+            border: 2px solid var(--neon-color);
+            border-radius: 20px;
+            padding: 30px;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 0 20px rgba(0, 238, 255, 0.3),
+                        inset 0 0 15px rgba(0, 238, 255, 0.2);
+            backdrop-filter: blur(8px);
+            text-align: center;
+            transition: all 0.3s ease;
+            animation: glow 2s infinite alternate;
+        }
+        
+        @keyframes glow {
+            from {
+                box-shadow: 0 0 10px rgba(0, 238, 255, 0.5);
+            }
+            to {
+                box-shadow: 0 0 20px rgba(0, 238, 255, 0.8),
+                            0 0 30px rgba(0, 238, 255, 0.4);
+            }
+        }
+        
+        .logo {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 2px solid var(--neon-color);
+            margin: 0 auto 20px;
+            object-fit: cover;
+            box-shadow: 0 0 15px var(--neon-color);
+            background: white;
+            padding: 5px;
+        }
+        
+        h1 {
+            margin-bottom: 30px;
+            color: white;
+            text-shadow: 0 0 10px var(--neon-color);
+            font-weight: 300;
+            letter-spacing: 1px;
+        }
+        
+        .btn-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            letter-spacing: 1px;
+        }
+        
+        .btn-primary {
+            background: transparent;
+            color: var(--neon-color);
+            border: 2px solid var(--neon-color);
+            box-shadow: 0 0 10px rgba(0, 238, 255, 0.5);
+        }
+        
+        .btn-primary:hover {
+            background: rgba(0, 238, 255, 0.1);
+            box-shadow: 0 0 20px var(--neon-color);
+            transform: translateY(-3px);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-3px);
+        }
+        
+        /* Feedback styles */
+        .feedback-container {
+            display: none;
+            width: 100%;
+            max-width: 800px;
+            margin-top: 20px;
+        }
+        
+        .feedback-list {
+            max-height: 60vh;
+            overflow-y: auto;
+            padding-right: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .feedback-item {
+            background: rgba(30, 41, 59, 0.8);
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid var(--neon-color);
+            transition: transform 0.3s ease;
+        }
+        
+        .feedback-item:hover {
+            transform: translateX(5px);
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 10px;
+            border: 1px solid var(--neon-color);
+            object-fit: cover;
+        }
+        
+        .username {
+            font-weight: bold;
+            color: var(--neon-color);
+            text-shadow: 0 0 5px rgba(0, 238, 255, 0.5);
+        }
+        
+        .feedback-text {
+            margin-bottom: 10px;
+            line-height: 1.5;
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        .feedback-date {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            text-align: right;
+        }
+        
+        /* Feedback form */
+        .feedback-form {
+            display: none;
+            width: 100%;
+            max-width: 500px;
+            margin-top: 20px;
+        }
+        
+        textarea {
+            width: 100%;
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid var(--neon-color);
+            border-radius: 12px;
+            padding: 15px;
+            color: white;
+            margin-bottom: 15px;
+            resize: none;
+            min-height: 150px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+        
+        textarea:focus {
+            outline: none;
+            box-shadow: 0 0 10px var(--neon-color);
+            border-color: var(--neon-color);
+        }
+        
+        /* Auth warning */
+        .auth-warning {
+            display: none;
+            color: #ff6b6b;
+            margin-top: 20px;
+            text-align: center;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 0.7; }
+            50% { opacity: 1; }
+            100% { opacity: 0.7; }
+        }
+        
+        /* Telegram login button */
+        .tg-login-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 12px 25px;
+            background: #0088cc;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 15px;
+            width: 100%;
+        }
+        
+        .tg-login-btn:hover {
+            background: #0077b5;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 136, 204, 0.4);
+        }
+        
+        .tg-login-btn img {
+            width: 20px;
+            height: 20px;
+        }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--neon-color);
+            border-radius: 10px;
+        }
+        
+        /* Mobile adaptation */
+        @media (max-width: 768px) {
+            .neon-card {
+                padding: 20px;
+                max-width: 95%;
+            }
+            
+            h1 {
+                font-size: 24px;
+                margin-bottom: 20px;
+            }
+            
+            .btn {
+                padding: 10px 20px;
+                font-size: 14px;
+            }
+            
+            .feedback-list {
+                max-height: 50vh;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Video background -->
+    <video id="bg-video" autoplay muted loop>
+        <source id="video-source" src="" type="video/mp4">
+    </video>
+    <div class="overlay"></div>
+    
+    <div class="main-container">
+        <!-- Main menu -->
+        <div class="neon-card" id="main-menu">
+            <img src="logo.png" alt="Logo" class="logo">
+            <h1>Оставьте ваш отзыв</h1>
+            
+            <div class="btn-container">
+                <button class="btn btn-primary" id="view-feedback-btn">Смотреть отзывы</button>
+                <button class="btn btn-primary" id="add-feedback-btn">Оставить отзыв</button>
+            </div>
+            
+            <!-- Кнопка входа через Telegram -->
+            <button class="tg-login-btn" id="tg-login-btn">
+                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0xMS45NDQgMEM1LjQ2NSAwIC4xMyA1LjE3OS4xMyAxMS41MzdjMCAzLjI3NSAxLjI1MyA2LjIxNyAzLjMxIDguNDk3bC0xLjY1OCA2LjE0NGMu0LTEuNDQ5IDEuNjQ1LTIuMDIgMi4xMjctLjc3NGwxLjk4LTcuMzgzYy43ODYuMjc4IDEuNjEuNDM3IDIuNDYuNDY3VjI0aDcuOTQ0di0xLjU0N2MzLjUxLS4zMzkgNi4zMTMtMy4xMDMgNi4zMTMtNi43MTYgMC0zLjcxLTIuODctNi43MTYtNi40NTYtNi43MTZIMTEuOTR6Ii8+PC9zdmc+" alt="Telegram">
+                Войти через Telegram
+            </button>
+            
+            <div class="auth-warning" id="auth-warning">
+                Для оставления отзыва войдите через Telegram!
+            </div>
+        </div>
+        
+        <!-- Feedback container -->
+        <div class="neon-card feedback-container" id="feedback-container">
+            <h1>Последние отзывы</h1>
+            <div class="feedback-list" id="feedback-list">
+                <!-- Feedback items will be added here by JS -->
+            </div>
+            <button class="btn btn-secondary" id="back-to-main-btn">На главную</button>
+        </div>
+        
+        <!-- Feedback form -->
+        <div class="neon-card feedback-form" id="feedback-form">
+            <h1>Ваш отзыв</h1>
+            <div class="user-info" id="form-user-info">
+                <img id="form-user-avatar" class="user-avatar" src="default-avatar.png" alt="User">
+                <span class="username" id="form-username">@username</span>
+            </div>
+            <textarea placeholder="Напишите ваш отзыв здесь..."></textarea>
+            <button class="btn btn-primary" id="submit-feedback-btn">Отправить</button>
+            <button class="btn btn-secondary" id="cancel-feedback-btn">Отмена</button>
+        </div>
+    </div>
+
+    <script>
+        // Имитация базы данных
+        const feedbackDB = {
+            storage: localStorage.getItem('feedbackDB') ? JSON.parse(localStorage.getItem('feedbackDB')) : [],
+            
+            addFeedback: function(feedback) {
+                this.storage.push(feedback);
+                localStorage.setItem('feedbackDB', JSON.stringify(this.storage));
+            },
+            
+            getFeedbacks: function() {
+                return this.storage;
+            },
+            
+            clearDB: function() {
+                this.storage = [];
+                localStorage.setItem('feedbackDB', JSON.stringify(this.storage));
+            }
+        };
+
+        // Telegram WebApp integration
+        const tgWebApp = {
+            isTelegram: false,
+            user: null,
+            
+            init: function() {
+                if (window.Telegram && window.Telegram.WebApp) {
+                    this.isTelegram = true;
+                    window.Telegram.WebApp.expand();
+                    this.user = window.Telegram.WebApp.initDataUnsafe?.user;
+                    
+                    if (this.user) {
+                        console.log('User authenticated via Telegram:', this.user);
+                        document.getElementById('auth-warning').style.display = 'none';
+                        document.getElementById('tg-login-btn').style.display = 'none';
+                    } else {
+                        console.log('User not authenticated');
+                        document.getElementById('auth-warning').style.display = 'block';
+                    }
+                } else {
+                    console.log('Not in Telegram WebApp');
+                    document.getElementById('auth-warning').style.display = 'block';
+                }
+            },
+            
+            getUserData: function() {
+                if (this.user) {
+                    return {
+                        id: this.user.id,
+                        username: this.user.username || `user_${this.user.id}`,
+                        firstName: this.user.first_name,
+                        lastName: this.user.last_name,
+                        avatar: this.user.photo_url || 'default-avatar.png'
+                    };
+                }
+                return null;
+            },
+            
+            openAuth: function() {
+                if (this.isTelegram) {
+                    window.Telegram.WebApp.openTelegramLink('https://t.me/YourBotName?start=webapp');
+                } else {
+                    window.open('https://t.me/YourBotName?start=webapp', '_blank');
+                }
+            }
+        };
+
+        // UI Controller
+        const appController = {
+            init: function() {
+                this.setBackgroundVideo();
+                tgWebApp.init();
+                this.setupEventListeners();
+                this.checkAuth();
+            },
+            
+            setBackgroundVideo: function() {
+                const videoElement = document.getElementById('bg-video');
+                const sourceElement = document.getElementById('video-source');
+                
+                // Устанавливаем видео в зависимости от устройства
+                if (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                    sourceElement.src = 'mobile-bg.mp4';
+                } else {
+                    sourceElement.src = 'desktop-bg.mp4';
+                }
+                
+                videoElement.load();
+            },
+            
+            setupEventListeners: function() {
+                document.getElementById('view-feedback-btn').addEventListener('click', () => this.showFeedbackList());
+                document.getElementById('add-feedback-btn').addEventListener('click', () => this.showFeedbackForm());
+                document.getElementById('back-to-main-btn').addEventListener('click', () => this.showMainMenu());
+                document.getElementById('cancel-feedback-btn').addEventListener('click', () => this.showMainMenu());
+                document.getElementById('submit-feedback-btn').addEventListener('click', () => this.submitFeedback());
+                document.getElementById('tg-login-btn').addEventListener('click', () => tgWebApp.openAuth());
+            },
+            
+            checkAuth: function() {
+                if (!tgWebApp.isTelegram || !tgWebApp.user) {
+                    document.getElementById('add-feedback-btn').addEventListener('click', (e) => {
+                        if (!tgWebApp.user) {
+                            e.preventDefault();
+                            alert('Для оставления отзыва войдите через Telegram!');
+                        }
+                    });
+                }
+            },
+            
+            showMainMenu: function() {
+                document.getElementById('main-menu').style.display = 'block';
+                document.getElementById('feedback-container').style.display = 'none';
+                document.getElementById('feedback-form').style.display = 'none';
+            },
+            
+            showFeedbackList: function() {
+                document.getElementById('main-menu').style.display = 'none';
+                document.getElementById('feedback-container').style.display = 'block';
+                document.getElementById('feedback-form').style.display = 'none';
+                
+                this.loadFeedbacks();
+            },
+            
+            showFeedbackForm: function() {
+                if (!tgWebApp.user) {
+                    alert('Для оставления отзыва войдите через Telegram!');
+                    return;
+                }
+                
+                document.getElementById('main-menu').style.display = 'none';
+                document.getElementById('feedback-container').style.display = 'none';
+                document.getElementById('feedback-form').style.display = 'block';
+                
+                const user = tgWebApp.getUserData();
+                if (user) {
+                    document.getElementById('form-user-avatar').src = user.avatar;
+                    document.getElementById('form-username').textContent = `@${user.username}`;
+                }
+                
+                document.querySelector('textarea').focus();
+            },
+            
+            loadFeedbacks: function() {
+                const feedbackList = document.getElementById('feedback-list');
+                feedbackList.innerHTML = '';
+                
+                const feedbacks = feedbackDB.getFeedbacks();
+                
+                if (feedbacks.length === 0) {
+                    feedbackList.innerHTML = '<p style="text-align: center; color: rgba(255,255,255,0.6);">Пока нет отзывов. Будьте первым!</p>';
+                    return;
+                }
+                
+                feedbacks.reverse().forEach(feedback => {
+                    const feedbackItem = document.createElement('div');
+                    feedbackItem.className = 'feedback-item';
+                    feedbackItem.innerHTML = `
+                        <div class="user-info">
+                            <img src="${feedback.user.avatar}" alt="${feedback.user.username}" class="user-avatar">
+                            <span class="username">@${feedback.user.username}</span>
+                        </div>
+                        <p class="feedback-text">${feedback.text}</p>
+                        <div class="feedback-date">${new Date(feedback.date).toLocaleString()}</div>
+                    `;
+                    feedbackList.appendChild(feedbackItem);
+                });
+            },
+            
+            submitFeedback: function() {
+                const textarea = document.querySelector('textarea');
+                const feedbackText = textarea.value.trim();
+                
+                if (!feedbackText) {
+                    alert('Пожалуйста, введите текст отзыва');
+                    return;
+                }
+                
+                const user = tgWebApp.getUserData();
+                if (!user) {
+                    alert('Ошибка авторизации');
+                    return;
+                }
+                
+                const newFeedback = {
+                    user: {
+                        id: user.id,
+                        username: user.username,
+                        avatar: user.avatar
+                    },
+                    text: feedbackText,
+                    date: new Date().toISOString()
+                };
+                
+                feedbackDB.addFeedback(newFeedback);
+                textarea.value = '';
+                
+                alert('Спасибо за ваш отзыв!');
+                this.showFeedbackList();
+            }
+        };
+
+        // Инициализация приложения
+        document.addEventListener('DOMContentLoaded', () => {
+            appController.init();
+        });
+    </script>
+</body>
+</html>
